@@ -18,9 +18,6 @@ jobs:
       - name: Checkout target repo
         uses: actions/checkout@v6
         with:
-          # GITHUB_TOKEN 可同步普通文件；若上游修改 workflow 文件，请配置
-          # FORK_SYNC_TOKEN（需要 workflow 权限）以避免推送被 GitHub 拒绝。
-          token: ${{ secrets.FORK_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
           fetch-depth: 0
           ref: main
 
