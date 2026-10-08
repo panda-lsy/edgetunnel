@@ -1,4 +1,4 @@
-﻿const Version = '2026-10-08 08:30:00';
+﻿const Version = '2026-10-08 09:19:00';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
@@ -19,6 +19,11 @@ export default {
 	async fetch(request, env, ctx) {
 		let 故障阶段 = 'request_init';
 		try {
+		if (['1', 'true'].includes(env.TUNNEL_DIAGNOSTICS)) {
+			const kind = (request.headers.get('Upgrade') || '').toLowerCase() === 'websocket'
+				? 'websocket' : request.method === 'POST' ? 'post' : 'http';
+			console.log(JSON.stringify({ event: 'edgetunnel_request', version: Version, kind }));
+		}
 		let 请求URL文本 = request.url.replace(/%5[Cc]/g, '').replace(/\\/g, '');
 		const 请求URL锚点索引 = 请求URL文本.indexOf('#');
 		const 请求URL主体部分 = 请求URL锚点索引 === -1 ? 请求URL文本 : 请求URL文本.slice(0, 请求URL锚点索引);

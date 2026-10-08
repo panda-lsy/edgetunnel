@@ -8,7 +8,9 @@
 - TCP 建连默认等待 5 秒；`TCP_CONNECT_TIMEOUT_MS` 可设置 1000–15000 毫秒，非法配置回退到默认值。
 - 建连完成或失败后清理超时定时器。
 - `TUNNEL_DIAGNOSTICS=true` 开启固定字段日志：随机关联标识、阶段、耗时、固定原因分类、字节计数。每连接最多 10 条；不输出原始异常、请求路径、代理凭据或目标地址。
-- Workers Logs 使用 10% 采样并关闭 invocation logs，保留原有变量及 KV 绑定。
+- 排障期间 Workers Logs 使用 100% 采样并关闭 invocation logs，保留原有变量及 KV 绑定。排障结束后将两个 `head_sampling_rate` 恢复为 `0.1`。
+- 每次进入 fetch 处理器输出 `edgetunnel_request`，只包含固定版本标记及 `http` / `post` / `websocket` 分类；前端普通 GET 也有入口记录。它只证明处理器已开始执行，不证明响应成功。`TUNNEL_DIAGNOSTICS` 关闭时不输出。
+- 入口异常输出 `edgetunnel_handler_error` 的固定阶段和错误分类；不会输出原始异常。`request.cf` 缺失时使用默认机房标记。
 
 `uploadAttemptBytes` 是尝试交给 TCP 的字节数，不代表对端实际收到。`downloadBytes` 是从远端读出的字节数。日志中同一个 connectionId 可用于关联不同阶段。
 
