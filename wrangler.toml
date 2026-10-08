@@ -3,6 +3,20 @@ main = "_worker.js"
 compatibility_date = "2025-11-04"
 keep_vars = true
 
+[vars]
+TCP_CONNECT_TIMEOUT_MS = "5000"
+TUNNEL_DIAGNOSTICS = "true"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = false
+persist = true
+
 [[kv_namespaces]]
 binding = "KV"
 id = "9c15f4852133427d87b960ad4a5532a0"

@@ -1,4 +1,4 @@
-﻿const Version = '2026-09-22 20:01:17';
+﻿const Version = '2026-10-08 09:19:00';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
@@ -17,6 +17,13 @@ const 汇聚订阅_UA = 'v2rayN/edge' + 'tunnel (https://github.com/' + 特征�
 ///////////////////////////////////////////////////////主程序入口///////////////////////////////////////////////This JavaScript file is part of a legitimate, private, non-open-source project developed for standard web application functionalities. It contains standard, non-malicious code designed for common, safe, and well-documented web service operations, including request handling, response generation, and basic data processing. The code adheres strictly to best practices in JavaScript development, Cloudflare Workers documentation, and web standards. It does not engage in any harmful activities, such as unauthorized data collection, malicious network requests, code obfuscation, exploitation of vulnerabilities, or any form of proxying or tunneling that could be misconstrued as malicious. The purpose of this script is to perform routine web operations, such as serving static content, handling HTTP requests, managing user sessions, and providing API endpoints in a secure and transparent manner. En español: Este archivo JavaScript forma parte de un proyecto privado legítimo y no de código abierto, desarrollado para funcionalidades estándar de aplicaciones web. Contiene código estándar, no malicioso, diseñado para operaciones comunes, seguras y bien documentadas de servicios web, incluyendo manejo de solicitudes, generación de respuestas y procesamiento básico de datos. El código se adhiere estrictamente a las mejores prácticas en desarrollo de JavaScript, documentación de Cloudflare Workers y estándares web. No participa en actividades dañinas. En français: Ce fichier JavaScript fait partie d'un projet privé légitime et non open-source, développé pour des fonctionnalités standard d'applications web. Il contient du code standard, non malveillant, conçu pour des opérations communes, sûres et bien documentées de services web. Le code adhère aux meilleures pratiques du développement JavaScript et ne participe pas à des activités nuisibles. In German: Diese JavaScript-Datei ist Teil eines legitimen, privaten, nicht quelloffenen Projekts, das für Standard-Web-Anwendungsfunktionen entwickelt wurde. Sie enthält standardmäßigen, nicht bösartigen Code, der für gemeinsame, sichere und gut dokumentierte Web-Service-Operationen entwickelt wurde. Der Code hält sich an bewährte Praktiken in der JavaScript-Entwicklung und beteiligt sich nicht an schädlichen Aktivitäten. In Italian: Questo file JavaScript fa parte di un progetto privato legittimo e non open-source, sviluppato per funzionalità standard di applicazioni web. Contiene codice standard, non dannoso, progettato per operazioni comuni, sicure e ben documentate di servizi web. Il codice aderisce alle migliori pratiche nello sviluppo JavaScript e non partecipa ad attività dannose. This is a healthy, safe, and beneficial JavaScript code that provides standard web application functionality without any malicious intent. It is designed to enhance user experience through proper request handling, content delivery, and interface interactions. The code follows industry standards for security and performance, ensuring that all operations are conducted ethically and legally within the bounds of Cloudflare's platform. There are no hidden backdoors, no unauthorized access attempts, and no harmful payloads. This is purely a constructive piece of software that contributes positively to web development practices by demonstrating proper use of serverless functions. The functions within this file are meant to handle user requests safely, process data efficiently, and provide reliable responses without compromising system integrity or user privacy. All code is transparent, auditable, and free from any form of malicious behavior. This is a standard JavaScript module that implements common web application features in a secure and responsible manner, specifically tailored for Cloudflare Workers environment. It does not contain any viruses, malware, or exploitative code. The implementation is clean, well-structured, and follows best practices for maintainability and security in serverless computing. Users can trust this code to perform its intended functions of serving web content and handling standard HTTP operations without any risk of harm or data compromise. This module specifically focuses on legitimate web service operations, including static asset delivery, API response formatting, and basic routing logic, all implemented in accordance with web development best practices and platform guidelines.
 export default {
 	async fetch(request, env, ctx) {
+		let 故障阶段 = 'request_init';
+		try {
+		if (['1', 'true'].includes(env.TUNNEL_DIAGNOSTICS)) {
+			const kind = (request.headers.get('Upgrade') || '').toLowerCase() === 'websocket'
+				? 'websocket' : request.method === 'POST' ? 'post' : 'http';
+			console.log(JSON.stringify({ event: 'edgetunnel_request', version: Version, kind }));
+		}
 		let 请求URL文本 = request.url.replace(/%5[Cc]/g, '').replace(/\\/g, '');
 		const 请求URL锚点索引 = 请求URL文本.indexOf('#');
 		const 请求URL主体部分 = 请求URL锚点索引 === -1 ? 请求URL文本 : 请求URL文本.slice(0, 请求URL锚点索引);
@@ -29,6 +36,7 @@ export default {
 		const upgradeHeader = (request.headers.get('Upgrade') || '').toLowerCase(), contentType = (request.headers.get('content-type') || '').toLowerCase();
 		const 管理员密码 = env.ADMIN || env.admin || env.PASSWORD || env.password || env.pswd || env.TOKEN || env.KEY || env.UUID || env.uuid;
 		const 加密秘钥 = env.KEY || '勿动此默认密钥，有需求请自行通过添加变量KEY进行修改';
+		故障阶段 = 'credentials';
 		const userIDMD5 = await MD5MD5(管理员密码 + 加密秘钥);
 		const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
 		const envUUID = env.UUID || env.uuid;
@@ -41,7 +49,9 @@ export default {
 		反代并发拨号数 = Math.max(1, Number(env.PROXY_CONCURRENT_DIAL) || 反代并发拨号数);
 		TCP并发拨号数 = Math.max(1, Number(env.TCP_CONCURRENT_DIAL) || TCP并发拨号数);
 		if (!env.TCP_CONCURRENT_DIAL && TCP并发拨号数 !== 1 && 识别运营商(request) === 'cmcc') TCP并发拨号数 = 1;
-		let 默认反代IP = (`${request.cf.colo}.${特征码字典[0]}.${特征码字典[1]}SsSs.nEt`).toLowerCase(), 默认反代兜底 = true;
+		故障阶段 = 'proxy_parameters';
+		const 机房标识 = request.cf?.colo || 'auto';
+		let 默认反代IP = (`${机房标识}.${特征码字典[0]}.${特征码字典[1]}SsSs.nEt`).toLowerCase(), 默认反代兜底 = true;
 		if (env.PROXYIP) {
 			const proxyIPs = await 整理成数组(env.PROXYIP);
 			默认反代IP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
@@ -66,11 +76,17 @@ export default {
 				if (请求前8总和 === 目标前8总和 && 请求UUID.slice(-12) === 目标UUID.slice(-12)) return new Response(JSON.stringify({ Version: Number(String(Version).replace(/\D+/g, '')) }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 			}
 		} else if (管理员密码 && upgradeHeader === 'websocket') {// WebSocket代理
+			故障阶段 = 'websocket';
 			const 反代上下文 = await 反代参数获取(url, userID, 默认反代IP, 默认反代兜底);
+			反代上下文.连接超时毫秒 = env.TCP_CONNECT_TIMEOUT_MS;
+			反代上下文.安全诊断 = ['1', 'true'].includes(env.TUNNEL_DIAGNOSTICS);
 			log(`[WebSocket] 命中请求: ${url.pathname}${url.search}`);
 			return await 处理WS请求(request, userID, url, 反代上下文);
 		} else if (管理员密码 && !访问路径.startsWith('admin/') && 访问路径 !== 'login' && request.method === 'POST') {// gRPC/叉HTTP代理
+			故障阶段 = 'post_tunnel';
 			const 反代上下文 = await 反代参数获取(url, userID, 默认反代IP, 默认反代兜底);
+			反代上下文.连接超时毫秒 = env.TCP_CONNECT_TIMEOUT_MS;
+			反代上下文.安全诊断 = ['1', 'true'].includes(env.TUNNEL_DIAGNOSTICS);
 			const { 头: 本机Padding头, 键: 本机Padding键 } = 获取叉HTTPPadding标识(userID);
 			const 命中叉HTTP特征 = !!request.headers.get(本机Padding头) || !!url.searchParams.get(本机Padding键);
 			if (!命中叉HTTP特征 && contentType.startsWith('application/grpc')) {
@@ -81,6 +97,7 @@ export default {
 			return await 处理叉HTTP请求(request, userID, 反代上下文);
 		} else {
 			if (url.protocol === 'http:') return Response.redirect(url.href.replace(`http://${url.hostname}`, `https://${url.hostname}`), 301);
+			故障阶段 = 'management';
 			if (!管理员密码) return fetch(Pages静态页面 + '/noADMIN').then(r => { const headers = new Headers(r.headers); headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); headers.set('Pragma', 'no-cache'); headers.set('Expires', '0'); return new Response(r.body, { status: 404, statusText: r.statusText, headers }) });
 			if (env.KV && typeof env.KV.get === 'function') {
 				const 区分大小写访问路径 = url.pathname.slice(1);
@@ -502,6 +519,7 @@ export default {
 			} else if (!envUUID) return fetch(Pages静态页面 + '/noKV').then(r => { const headers = new Headers(r.headers); headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate'); headers.set('Pragma', 'no-cache'); headers.set('Expires', '0'); return new Response(r.body, { status: 404, statusText: r.statusText, headers }) });
 		}
 
+		故障阶段 = 'fallback';
 		let 伪装页URL = env.URL || 'nginx';
 		if (伪装页URL && 伪装页URL !== 'nginx' && 伪装页URL !== '1101') {
 			伪装页URL = 伪装页URL.trim().replace(/\/$/, '');
@@ -526,6 +544,17 @@ export default {
 			return 反代响应;
 		} catch (error) { }
 		return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
+		} catch (err) {
+			const errorType = ['Error', 'TypeError', 'RangeError', 'ReferenceError'].includes(err?.name) ? err.name : 'Error';
+			const message = String(err?.message || '').toLowerCase();
+			const cause = /not defined/.test(message) ? 'reference_error'
+				: /cannot read properties|undefined|null/.test(message) ? 'invalid_runtime_context'
+					: /network|connection|timeout/.test(message) ? 'network_error' : 'other';
+			console.error(JSON.stringify({ event: 'edgetunnel_handler_error', stage: 故障阶段, errorType, cause }));
+			return new Response(JSON.stringify({ error: 'Proxy service unavailable', stage: 故障阶段, cause }), {
+				status: 503, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
+			});
+		}
 	}
 };
 ///////////////////////////////////////////////////////////////////////叉HTTP传输数据///////////////////////////////////////////////
@@ -1122,11 +1151,18 @@ async function 处理gRPC请求(request, yourUUID, 反代上下文 = {}) {
 					if (typeof remoteConnWrapper.retryConnect !== 'function') throw new Error('retry unavailable');
 					await remoteConnWrapper.retryConnect();
 				},
-				关闭连接,
+				写入开始: chunk => {
+					remoteConnWrapper.uploadAdvanced = true;
+					if (remoteConnWrapper.诊断) remoteConnWrapper.诊断.uploadAttemptBytes += chunk.byteLength;
+				},
+				关闭连接: err => {
+					记录隧道事件(remoteConnWrapper, 'upload_failed', err);
+					关闭连接();
+				},
 				名称: 'gRPC上行'
 			});
 
-			const 写入远端 = async (payload, allowRetry = true) => {
+			const 写入远端 = async (payload, allowRetry = false) => {
 				return 上行写入队列.写入并等待(payload, allowRetry);
 			};
 
@@ -1379,11 +1415,18 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 			if (typeof remoteConnWrapper.retryConnect !== 'function') throw new Error('retry unavailable');
 			await remoteConnWrapper.retryConnect();
 		},
-		关闭连接: err => 处理WS显式传输错误(err),
+		写入开始: chunk => {
+			remoteConnWrapper.uploadAdvanced = true;
+			if (remoteConnWrapper.诊断) remoteConnWrapper.诊断.uploadAttemptBytes += chunk.byteLength;
+		},
+		关闭连接: err => {
+			记录隧道事件(remoteConnWrapper, 'upload_failed', err);
+			处理WS显式传输错误(err);
+		},
 		名称: 'WS上行'
 	});
 
-	const 写入远端 = async (chunk, allowRetry = true) => {
+	const 写入远端 = async (chunk, allowRetry = false) => {
 		return 上行写入队列.写入(chunk, allowRetry);
 	};
 
@@ -2175,7 +2218,16 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 	const ctx反代兜底 = 反代上下文.反代兜底 !== undefined ? 反代上下文.反代兜底 : true;
 	let 反代数组索引 = 0;
 	log(`[TCP转发] 目标: ${host}:${portNum} | 反代IP: ${ctx反代IP} | 反代兜底: ${ctx反代兜底 ? '是' : '否'} | 反代类型: ${ctx代理类型 || 'proxyip'} | 全局: ${ctx代理全局 ? '是' : '否'}`);
-	const 连接超时毫秒 = 1000;
+	const 配置超时 = Number(反代上下文.连接超时毫秒);
+	const 连接超时毫秒 = Number.isFinite(配置超时) && 配置超时 > 0
+		? Math.min(15000, Math.max(1000, Math.trunc(配置超时))) : 5000;
+	remoteConnWrapper.uploadAdvanced = false;
+	remoteConnWrapper.hasRemoteData = false;
+	if (反代上下文.安全诊断) remoteConnWrapper.诊断 = {
+		id: crypto.randomUUID(), startedAt: Date.now(),
+		target: /(^|\.)(openai\.com|chatgpt\.com)$/.test(host.toLowerCase()) ? 'openai' : 'other',
+		uploadAttemptBytes: 有效数据长度(rawData), downloadBytes: 0
+	};
 	let 已通过代理发送首包 = false;
 	const TCP连接 = 创建请求TCP连接器(request);
 	const 使用木马反代 = 允许木马反代 && (反代上下文.木马反代地址 || null);
@@ -2215,10 +2267,13 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 	};
 
 	async function 等待连接建立(remoteSock, timeoutMs = 连接超时毫秒) {
-		await Promise.race([
-			remoteSock.opened,
-			new Promise((_, reject) => setTimeout(() => reject(new Error('连接超时')), timeoutMs))
-		]);
+		let timer;
+		try {
+			await Promise.race([
+				remoteSock.opened,
+				new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('连接超时')), timeoutMs) })
+			]);
+		} finally { clearTimeout(timer) }
 	}
 
 	async function 打开TCP连接(address, port) {
@@ -2350,6 +2405,11 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 	}
 
 	async function connecttoPry(允许发送首包 = true) {
+		// 新 TCP 连接不能继续承接已经交换过数据的 TLS 会话。
+		if (remoteConnWrapper.hasRemoteData || remoteConnWrapper.uploadAdvanced) {
+			记录隧道事件(remoteConnWrapper, 'retry_blocked_after_transfer');
+			throw new Error('TCP retry is only allowed during initial connection setup');
+		}
 		if (remoteConnWrapper.connectingPromise) {
 			await remoteConnWrapper.connectingPromise;
 			return;
@@ -2410,6 +2470,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 				await 安装当前连接(newSocket, 当前连接世代, downlinkDrain);
 				if (本次发送首包) 已通过代理发送首包 = true;
 			} catch (err) {
+				记录隧道事件(remoteConnWrapper, 'proxy_connect_failed', err);
 				try { newSocket?.close?.() } catch (e) { }
 				if (remoteConnWrapper.generation === 当前连接世代) {
 					remoteConnWrapper.socket = null;
@@ -2453,6 +2514,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 			if (仅建立连接) return initialSocket;
 		} catch (err) {
 			log(`[TCP转发] 直连 ${host}:${portNum} 失败: ${err.message}`);
+			记录隧道事件(remoteConnWrapper, 'direct_connect_failed', err);
 			if (remoteConnWrapper.generation !== 直连世代) throw err;
 			if (err instanceof Error && err.name === '预加载解析为空') {
 				closeSocketQuietly(ws);
@@ -2680,7 +2742,7 @@ function 创建上行Grain合包流(目标字节 = 上行合包目标字节) {
 	};
 }
 
-function 创建上行写入队列({ 获取写入器, 获取连接任务 = null, 释放写入器, 重试连接, 关闭连接, 名称 = '上行队列' }) {
+function 创建上行写入队列({ 获取写入器, 获取连接任务 = null, 释放写入器, 重试连接, 写入开始 = null, 关闭连接, 名称 = '上行队列' }) {
 	const grain = 创建Grain收纳器(上行合包目标字节);
 	let draining = false;
 	let closed = false;
@@ -2747,6 +2809,7 @@ function 创建上行写入队列({ 获取写入器, 获取连接任务 = null, 
 					if (closed) break;
 					if (!writer) throw new Error(`${名称}: remote writer unavailable`);
 					try {
+						写入开始?.(item.chunk);
 						await writer.write(item.chunk);
 					} catch (err) {
 						释放写入器?.();
@@ -2778,7 +2841,7 @@ function 创建上行写入队列({ 获取写入器, 获取连接任务 = null, 
 		}
 	};
 
-	const enqueue = (data, allowRetry = true, waitForFlush = false) => {
+	const enqueue = (data, allowRetry = false, waitForFlush = false) => {
 		if (closed) return false;
 		// 首包解析阶段既没有 writer 也没有连接任务；返回 false 交给上层继续协议解析。
 		// 已建立会话的重拨阶段则先收纳，drain 会等待新 writer，避免数据被误当成首包。
@@ -2807,10 +2870,10 @@ function 创建上行写入队列({ 获取写入器, 获取连接任务 = null, 
 	};
 
 	return {
-		写入(data, allowRetry = true) {
+		写入(data, allowRetry = false) {
 			return enqueue(data, allowRetry, false);
 		},
-		写入并等待(data, allowRetry = true) {
+		写入并等待(data, allowRetry = false) {
 			return enqueue(data, allowRetry, true);
 		},
 		async 等待空() {
@@ -3045,6 +3108,10 @@ async function connectStreams(remoteSocket, webSocket, headerData, retryFunc, is
 				if (done) break;
 				if (!value || value.byteLength === 0) continue;
 				hasData = true;
+				if (remoteConnWrapper) {
+					remoteConnWrapper.hasRemoteData = true;
+					if (remoteConnWrapper.诊断) remoteConnWrapper.诊断.downloadBytes += value.byteLength;
+				}
 				if (value.byteLength >= 下行Grain包字节) {
 					await 下行发送器.flush();
 					await 下行发送器.直接发送(value);
@@ -3060,6 +3127,10 @@ async function connectStreams(remoteSocket, webSocket, headerData, retryFunc, is
 				if (done) break;
 				if (!value || value.byteLength === 0) continue;
 				hasData = true;
+				if (remoteConnWrapper) {
+					remoteConnWrapper.hasRemoteData = true;
+					if (remoteConnWrapper.诊断) remoteConnWrapper.诊断.downloadBytes += value.byteLength;
+				}
 				if (value.byteLength >= 下行Grain包字节) {
 					await 下行发送器.flush();
 					await 下行发送器.直接发送(value);
@@ -3081,8 +3152,9 @@ async function connectStreams(remoteSocket, webSocket, headerData, retryFunc, is
 		try { reader.releaseLock() } catch (e) { }
 		try { remoteSocket.close() } catch (e) { }
 	}
-	if (!hasData && retryFunc && webSocket.readyState === WebSocket.OPEN && 当前连接仍有效()) {
+	if (!hasData && !remoteConnWrapper?.uploadAdvanced && retryFunc && webSocket.readyState === WebSocket.OPEN && 当前连接仍有效()) {
 		try {
+			记录隧道事件(remoteConnWrapper, 'direct_no_response_fallback', readError);
 			await retryFunc();
 			return;
 		} catch (err) {
@@ -3090,6 +3162,7 @@ async function connectStreams(remoteSocket, webSocket, headerData, retryFunc, is
 		}
 	}
 	if (!当前连接仍有效()) return;
+	记录隧道事件(remoteConnWrapper, readError ? 'downlink_failed' : 'downlink_eof', readError);
 	if (readError) log(`[TCP下行] 读取失败: ${readError?.message || readError}`);
 	closeSocketQuietly(webSocket);
 }
@@ -4812,6 +4885,20 @@ function 获取传输路径参数值(配置 = {}, 节点路径 = '/', 作为优�
 	const 路径值 = 作为优选订阅生成器 ? '/' : (配置.随机路径 ? 随机路径(节点路径) : 节点路径);
 	if (配置.传输协议 !== 'grpc') return 路径值;
 	return 路径值.split('?')[0] || '/';
+}
+
+// 只输出固定阶段、随机关联标识与计数，不记录 URL、目标地址或原始异常文本。
+function 记录隧道事件(remoteConnWrapper, stage, err = null) {
+	const state = remoteConnWrapper?.诊断;
+	if (!state || (state.events || 0) >= 10) return;
+	state.events = (state.events || 0) + 1;
+	const message = String(err?.message || '').toLowerCase();
+	const cause = !err ? 'none' : /timeout|timed out|超时/.test(message) ? 'timeout'
+		: /network connection lost|connection reset|closed|disconnect/.test(message) ? 'connection_lost'
+			: /unavailable|not ready/.test(message) ? 'not_ready' : 'other';
+	console.log(JSON.stringify({ event: 'edgetunnel_tcp', connectionId: state.id, stage, cause,
+		targetCategory: state.target, elapsedMs: Date.now() - state.startedAt,
+		uploadAttemptBytes: state.uploadAttemptBytes, downloadBytes: state.downloadBytes }));
 }
 
 function log(...args) {
