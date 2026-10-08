@@ -1,4 +1,4 @@
-﻿const Version = '2026-09-22 20:01:17';
+﻿const Version = '2026-10-08 08:30:00';
 let config_JSON, 缓存SOCKS5白名单 = null, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
@@ -67,10 +67,14 @@ export default {
 			}
 		} else if (管理员密码 && upgradeHeader === 'websocket') {// WebSocket代理
 			const 反代上下文 = await 反代参数获取(url, userID, 默认反代IP, 默认反代兜底);
+			反代上下文.连接超时毫秒 = env.TCP_CONNECT_TIMEOUT_MS;
+			反代上下文.安全诊断 = ['1', 'true'].includes(env.TUNNEL_DIAGNOSTICS);
 			log(`[WebSocket] 命中请求: ${url.pathname}${url.search}`);
 			return await 处理WS请求(request, userID, url, 反代上下文);
 		} else if (管理员密码 && !访问路径.startsWith('admin/') && 访问路径 !== 'login' && request.method === 'POST') {// gRPC/叉HTTP代理
 			const 反代上下文 = await 反代参数获取(url, userID, 默认反代IP, 默认反代兜底);
+			反代上下文.连接超时毫秒 = env.TCP_CONNECT_TIMEOUT_MS;
+			反代上下文.安全诊断 = ['1', 'true'].includes(env.TUNNEL_DIAGNOSTICS);
 			const { 头: 本机Padding头, 键: 本机Padding键 } = 获取叉HTTPPadding标识(userID);
 			const 命中叉HTTP特征 = !!request.headers.get(本机Padding头) || !!url.searchParams.get(本机Padding键);
 			if (!命中叉HTTP特征 && contentType.startsWith('application/grpc')) {
@@ -1122,11 +1126,18 @@ async function 处理gRPC请求(request, yourUUID, 反代上下文 = {}) {
 					if (typeof remoteConnWrapper.retryConnect !== 'function') throw new Error('retry unavailable');
 					await remoteConnWrapper.retryConnect();
 				},
-				关闭连接,
+				写入开始: chunk => {
+					remoteConnWrapper.uploadAdvanced = true;
+					if (remoteConnWrapper.诊断) remoteConnWrapper.诊断.uploadAttemptBytes += chunk.byteLength;
+				},
+				关闭连接: err => {
+					记录隧道事件(remoteConnWrapper, 'upload_failed', err);
+					关闭连接();
+				},
 				名称: 'gRPC上行'
 			});
 
-			const 写入远端 = async (payload, allowRetry = true) => {
+			const 写入远端 = async (payload, allowRetry = false) => {
 				return 上行写入队列.写入并等待(payload, allowRetry);
 			};
 
@@ -1379,11 +1390,18 @@ async function 处理WS请求(request, yourUUID, url, 反代上下文 = {}) {
 			if (typeof remoteConnWrapper.retryConnect !== 'function') throw new Error('retry unavailable');
 			await remoteConnWrapper.retryConnect();
 		},
-		关闭连接: err => 处理WS显式传输错误(err),
+		写入开始: chunk => {
+			remoteConnWrapper.uploadAdvanced = true;
+			if (remoteConnWrapper.诊断) remoteConnWrapper.诊断.uploadAttemptBytes += chunk.byteLength;
+		},
+		关闭连接: err => {
+			记录隧道事件(remoteConnWrapper, 'upload_failed', err);
+			处理WS显式传输错误(err);
+		},
 		名称: 'WS上行'
 	});
 
-	const 写入远端 = async (chunk, allowRetry = true) => {
+	const 写入远端 = async (chunk, allowRetry = false) => {
 		return 上行写入队列.写入(chunk, allowRetry);
 	};
 
@@ -2175,7 +2193,16 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 	const ctx反代兜底 = 反代上下文.反代兜底 !== undefined ? 反代上下文.反代兜底 : true;
 	let 反代数组索引 = 0;
 	log(`[TCP转发] 目标: ${host}:${portNum} | 反代IP: ${ctx反代IP} | 反代兜底: ${ctx反代兜底 ? '是' : '否'} | 反代类型: ${ctx代理类型 || 'proxyip'} | 全局: ${ctx代理全局 ? '是' : '否'}`);
-	const 连接超时毫秒 = 1000;
+	const 配置超时 = Number(反代上下文.连接超时毫秒);
+	const 连接超时毫秒 = Number.isFinite(配置超时) && 配置超时 > 0
+		? Math.min(15000, Math.max(1000, Math.trunc(配置超时))) : 5000;
+	remoteConnWrapper.uploadAdvanced = false;
+	remoteConnWrapper.hasRemoteData = false;
+	if (反代上下文.安全诊断) remoteConnWrapper.诊断 = {
+		id: crypto.randomUUID(), startedAt: Date.now(),
+		target: /(^|\.)(openai\.com|chatgpt\.com)$/.test(host.toLowerCase()) ? 'openai' : 'other',
+		uploadAttemptBytes: 有效数据长度(rawData), downloadBytes: 0
+	};
 	let 已通过代理发送首包 = false;
 	const TCP连接 = 创建请求TCP连接器(request);
 	const 使用木马反代 = 允许木马反代 && (反代上下文.木马反代地址 || null);
@@ -2215,10 +2242,13 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 	};
 
 	async function 等待连接建立(remoteSock, timeoutMs = 连接超时毫秒) {
-		await Promise.race([
-			remoteSock.opened,
-			new Promise((_, reject) => setTimeout(() => reject(new Error('连接超时')), timeoutMs))
-		]);
+		let timer;
+		try {
+			await Promise.race([
+				remoteSock.opened,
+				new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('连接超时')), timeoutMs) })
+			]);
+		} finally { clearTimeout(timer) }
 	}
 
 	async function 打开TCP连接(address, port) {
@@ -2350,6 +2380,11 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 	}
 
 	async function connecttoPry(允许发送首包 = true) {
+		// 新 TCP 连接不能继续承接已经交换过数据的 TLS 会话。
+		if (remoteConnWrapper.hasRemoteData || remoteConnWrapper.uploadAdvanced) {
+			记录隧道事件(remoteConnWrapper, 'retry_blocked_after_transfer');
+			throw new Error('TCP retry is only allowed during initial connection setup');
+		}
 		if (remoteConnWrapper.connectingPromise) {
 			await remoteConnWrapper.connectingPromise;
 			return;
@@ -2410,6 +2445,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 				await 安装当前连接(newSocket, 当前连接世代, downlinkDrain);
 				if (本次发送首包) 已通过代理发送首包 = true;
 			} catch (err) {
+				记录隧道事件(remoteConnWrapper, 'proxy_connect_failed', err);
 				try { newSocket?.close?.() } catch (e) { }
 				if (remoteConnWrapper.generation === 当前连接世代) {
 					remoteConnWrapper.socket = null;
@@ -2453,6 +2489,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
 			if (仅建立连接) return initialSocket;
 		} catch (err) {
 			log(`[TCP转发] 直连 ${host}:${portNum} 失败: ${err.message}`);
+			记录隧道事件(remoteConnWrapper, 'direct_connect_failed', err);
 			if (remoteConnWrapper.generation !== 直连世代) throw err;
 			if (err instanceof Error && err.name === '预加载解析为空') {
 				closeSocketQuietly(ws);
@@ -2680,7 +2717,7 @@ function 创建上行Grain合包流(目标字节 = 上行合包目标字节) {
 	};
 }
 
-function 创建上行写入队列({ 获取写入器, 获取连接任务 = null, 释放写入器, 重试连接, 关闭连接, 名称 = '上行队列' }) {
+function 创建上行写入队列({ 获取写入器, 获取连接任务 = null, 释放写入器, 重试连接, 写入开始 = null, 关闭连接, 名称 = '上行队列' }) {
 	const grain = 创建Grain收纳器(上行合包目标字节);
 	let draining = false;
 	let closed = false;
@@ -2747,6 +2784,7 @@ function 创建上行写入队列({ 获取写入器, 获取连接任务 = null, 
 					if (closed) break;
 					if (!writer) throw new Error(`${名称}: remote writer unavailable`);
 					try {
+						写入开始?.(item.chunk);
 						await writer.write(item.chunk);
 					} catch (err) {
 						释放写入器?.();
@@ -2778,7 +2816,7 @@ function 创建上行写入队列({ 获取写入器, 获取连接任务 = null, 
 		}
 	};
 
-	const enqueue = (data, allowRetry = true, waitForFlush = false) => {
+	const enqueue = (data, allowRetry = false, waitForFlush = false) => {
 		if (closed) return false;
 		// 首包解析阶段既没有 writer 也没有连接任务；返回 false 交给上层继续协议解析。
 		// 已建立会话的重拨阶段则先收纳，drain 会等待新 writer，避免数据被误当成首包。
@@ -2807,10 +2845,10 @@ function 创建上行写入队列({ 获取写入器, 获取连接任务 = null, 
 	};
 
 	return {
-		写入(data, allowRetry = true) {
+		写入(data, allowRetry = false) {
 			return enqueue(data, allowRetry, false);
 		},
-		写入并等待(data, allowRetry = true) {
+		写入并等待(data, allowRetry = false) {
 			return enqueue(data, allowRetry, true);
 		},
 		async 等待空() {
@@ -3045,6 +3083,10 @@ async function connectStreams(remoteSocket, webSocket, headerData, retryFunc, is
 				if (done) break;
 				if (!value || value.byteLength === 0) continue;
 				hasData = true;
+				if (remoteConnWrapper) {
+					remoteConnWrapper.hasRemoteData = true;
+					if (remoteConnWrapper.诊断) remoteConnWrapper.诊断.downloadBytes += value.byteLength;
+				}
 				if (value.byteLength >= 下行Grain包字节) {
 					await 下行发送器.flush();
 					await 下行发送器.直接发送(value);
@@ -3060,6 +3102,10 @@ async function connectStreams(remoteSocket, webSocket, headerData, retryFunc, is
 				if (done) break;
 				if (!value || value.byteLength === 0) continue;
 				hasData = true;
+				if (remoteConnWrapper) {
+					remoteConnWrapper.hasRemoteData = true;
+					if (remoteConnWrapper.诊断) remoteConnWrapper.诊断.downloadBytes += value.byteLength;
+				}
 				if (value.byteLength >= 下行Grain包字节) {
 					await 下行发送器.flush();
 					await 下行发送器.直接发送(value);
@@ -3081,8 +3127,9 @@ async function connectStreams(remoteSocket, webSocket, headerData, retryFunc, is
 		try { reader.releaseLock() } catch (e) { }
 		try { remoteSocket.close() } catch (e) { }
 	}
-	if (!hasData && retryFunc && webSocket.readyState === WebSocket.OPEN && 当前连接仍有效()) {
+	if (!hasData && !remoteConnWrapper?.uploadAdvanced && retryFunc && webSocket.readyState === WebSocket.OPEN && 当前连接仍有效()) {
 		try {
+			记录隧道事件(remoteConnWrapper, 'direct_no_response_fallback', readError);
 			await retryFunc();
 			return;
 		} catch (err) {
@@ -3090,6 +3137,7 @@ async function connectStreams(remoteSocket, webSocket, headerData, retryFunc, is
 		}
 	}
 	if (!当前连接仍有效()) return;
+	记录隧道事件(remoteConnWrapper, readError ? 'downlink_failed' : 'downlink_eof', readError);
 	if (readError) log(`[TCP下行] 读取失败: ${readError?.message || readError}`);
 	closeSocketQuietly(webSocket);
 }
@@ -4812,6 +4860,20 @@ function 获取传输路径参数值(配置 = {}, 节点路径 = '/', 作为优�
 	const 路径值 = 作为优选订阅生成器 ? '/' : (配置.随机路径 ? 随机路径(节点路径) : 节点路径);
 	if (配置.传输协议 !== 'grpc') return 路径值;
 	return 路径值.split('?')[0] || '/';
+}
+
+// 只输出固定阶段、随机关联标识与计数，不记录 URL、目标地址或原始异常文本。
+function 记录隧道事件(remoteConnWrapper, stage, err = null) {
+	const state = remoteConnWrapper?.诊断;
+	if (!state || (state.events || 0) >= 10) return;
+	state.events = (state.events || 0) + 1;
+	const message = String(err?.message || '').toLowerCase();
+	const cause = !err ? 'none' : /timeout|timed out|超时/.test(message) ? 'timeout'
+		: /network connection lost|connection reset|closed|disconnect/.test(message) ? 'connection_lost'
+			: /unavailable|not ready/.test(message) ? 'not_ready' : 'other';
+	console.log(JSON.stringify({ event: 'edgetunnel_tcp', connectionId: state.id, stage, cause,
+		targetCategory: state.target, elapsedMs: Date.now() - state.startedAt,
+		uploadAttemptBytes: state.uploadAttemptBytes, downloadBytes: state.downloadBytes }));
 }
 
 function log(...args) {
